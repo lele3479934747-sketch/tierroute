@@ -19,7 +19,11 @@ from typing import Optional
 
 from . import costs
 
-TIER_ORDER = ["light", "standard", "deep"]
+# Full possible order. "flagship" is optional: a config (or preset) opts in by
+# defining it under "tiers". The text scorer never picks it by itself; it is
+# reached by override, high_stakes, escalation, a declared job tier, or as the
+# current_tier of a session already running on the top model.
+TIER_ORDER = ["light", "standard", "deep", "flagship"]
 
 _DEFAULT_CONFIG_PATH = Path(__file__).with_name("default_config.json")
 _PRESET_DIR = Path(__file__).with_name("presets")
@@ -112,9 +116,9 @@ def _count(patterns: list, text: str) -> list:
     return hits
 
 
-def step(tier: str, delta: int) -> str:
-    i = TIER_ORDER.index(tier) + delta
-    return TIER_ORDER[max(0, min(len(TIER_ORDER) - 1, i))]
+def step(tier: str, delta: int, order: list) -> str:
+    i = order.index(tier) + delta
+    return order[max(0, min(len(order) - 1, i))]
 
 
 class Router:
@@ -122,6 +126,7 @@ class Router:
         """outcomes: optional learn.OutcomeStore; promotes task kinds that keep failing."""
         self.config = config or load_config()
         self.outcomes = outcomes
+        self.order = [t for t in TIER_ORDER if t in self.config["tiers"]]
 
     def build(self, tier: str, score: int = 0, reasons: Optional[list] = None, kind: Optional[str] = None) -> Route:
         spec = self.config["tiers"][tier]
@@ -149,12 +154,12 @@ class Router:
             tier = cfg["kinds"][kind]
             reasons.append("kind=" + kind)
             if self.outcomes is not None:
-                promoted = self.outcomes.promoted_tier(kind, tier, cfg["learning"])
+                promoted = self.outcomes.promoted_tier(kind, tier, cfg["learning"], self.order)
                 if promoted != tier:
                     reasons.append("promoted from %s: this kind kept failing there" % tier)
                     tier = promoted
             if high_stakes:
-                tier = step(tier, +1)
+                tier = step(tier, +1, self.order)
                 reasons.append("high_stakes raised the tier")
             return self.build(tier, 0, reasons, kind)
 
@@ -228,7 +233,7 @@ class Router:
         if current_tier is None:
             return Decision(r, "use", note="no current model; cost of this call only",
                             switch_cost=costs.call_cost(cfg, r.tier, task_in, out))
-        if current_tier not in TIER_ORDER:
+        if current_tier not in self.order:
             raise ValueError("unknown current_tier: %r" % current_tier)
 
         stay = costs.call_cost(cfg, current_tier, task_in, out, cached_in=context_tokens)
@@ -256,7 +261,7 @@ class Router:
 
     def escalate(self, route: Route) -> Optional[Route]:
         """Return the next tier up after a failure, or None at the top."""
-        nxt = step(route.tier, +1)
+        nxt = step(route.tier, +1, self.order)
         if nxt == route.tier:
             return None
         return self.build(nxt, route.score, route.reasons + ["escalated"], route.kind)

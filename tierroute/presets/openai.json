@@ -1,0 +1,28 @@
+{
+  "cost_units": "USD per million tokens",
+  "pricing_source": "https://developers.openai.com/api/docs/pricing",
+  "pricing_checked": "2026-11-12",
+  "pricing_notes": "Standard processing tier, short-context prices (prompts up to 272,000 input tokens). cache_read is the 'cached input' rate. cache_write is the '30m write' rate the pricing page lists for the GPT-6 family; the '12h write' rate is 2.5x base input. Prompts over 272,000 tokens are billed at higher long-context prices: only the flagship's are modelled here, in its 'over' block (its long-context cache write rate was not captured). Batch, Flex, Fast and regional pricing are not modelled. The tier-to-model mapping is this project's choice, made by price; the effort values are plain labels to map to your own reasoning setting. Prices change: check the source before relying on these.",
+  "tiers": {
+    "light":    {"model": "gpt-6-luna",    "effort": "low"},
+    "standard": {"model": "gpt-6.1-terra", "effort": "medium"},
+    "deep":     {"model": "gpt-6.1-sol",   "effort": "high"},
+    "flagship": {"model": "gpt-6-astra",   "effort": "high"}
+  },
+  "overrides": {
+    "//luna": "light",
+    "//terra": "standard",
+    "//sol": "deep",
+    "//astra": "flagship",
+    "//flagship": "flagship"
+  },
+  "cost_per_mtok": {
+    "light":    {"in": 0.10,  "out": 0.50,  "cache_read": 0.01, "cache_write": 0.125},
+    "standard": {"in": 1.00,  "out": 5.00,  "cache_read": 0.05, "cache_write": 1.25},
+    "deep":     {"in": 2.00,  "out": 10.00, "cache_read": 0.10, "cache_write": 2.50},
+    "flagship": {
+      "in": 10.00, "out": 50.00, "cache_read": 1.00, "cache_write": 12.50,
+      "over": {"threshold": 272000, "in": 20.00, "out": 75.00, "cache_read": 2.00}
+    }
+  }
+}

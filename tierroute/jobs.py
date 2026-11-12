@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from .router import TIER_ORDER, Router
+from .router import Router
 
 
 def plan_job(manifest: dict, router: Optional[Router] = None) -> list:
@@ -28,7 +28,7 @@ def plan_job(manifest: dict, router: Optional[Router] = None) -> list:
     for i, s in enumerate(manifest.get("steps", [])):
         name = s.get("name", "step-%d" % (i + 1))
         if s.get("tier"):
-            if s["tier"] not in TIER_ORDER:
+            if s["tier"] not in router.order:
                 raise ValueError("step %r: unknown tier %r" % (name, s["tier"]))
             r = router.build(s["tier"], 0, ["declared tier"], s.get("kind"))
         elif s.get("kind", "").lower() in kinds:

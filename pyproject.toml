@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tierroute"
-version = "0.3.0"
+version = "0.4.0"
 description = "Tiny dependency-free router that picks a model and reasoning effort per task."
 readme = "README.md"
 requires-python = ">=3.9"

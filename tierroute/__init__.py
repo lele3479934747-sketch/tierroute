@@ -9,4 +9,4 @@ __all__ = [
     "Decision", "OutcomeStore", "ReceiptLog", "Route", "Router",
     "backtest", "load_config", "load_job", "load_tasks", "plan_job", "preset_path", "route", "run",
 ]
-__version__ = "0.3.0"
+__version__ = "0.4.0"

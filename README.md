@@ -23,7 +23,7 @@ Most routers compare list prices and stop there. tierroute adds the parts that d
 
 Routing itself is a deterministic scoring function: no extra model call, no embeddings, no API key. Python 3.9+ standard library only.
 
-> **Status: v0.3, not yet benchmarked against real models.** The tests cover the logic. The cost figures are estimates from the prices in your config or preset. Nothing here has been measured on live workloads yet.
+> **Status: v0.4, not yet benchmarked against real models.** The tests cover the logic. The cost figures are estimates from the prices in your config or preset. Nothing here has been measured on live workloads yet.
 
 ## Quick start
 
@@ -159,7 +159,7 @@ router = Router(load_config("my_routes.json"))
 
 | Key | What it sets |
 |---|---|
-| `tiers` | Model ID and effort for `light`, `standard`, `deep` |
+| `tiers` | Model ID and effort for `light`, `standard`, `deep`, and optionally `flagship` |
 | `kinds` | Task kind to tier |
 | `keywords`, `length`, `thresholds` | The text scorer |
 | `overrides` | Tokens such as `//opus` |
@@ -169,30 +169,66 @@ router = Router(load_config("my_routes.json"))
 
 ## Pricing presets
 
-The default config uses illustrative relative units, so estimates work with no setup. For real prices, load the bundled preset:
+The default config uses illustrative relative units and three tiers, so estimates work with no setup. For real prices, load a bundled preset:
 
 ```python
 from tierroute import Router, load_config
-router = Router(load_config(preset="anthropic"))
+router = Router(load_config(preset="anthropic"))   # or preset="openai"
 ```
 
 ```bash
-python -m tierroute backtest examples/tasks.jsonl --preset anthropic
+python -m tierroute backtest examples/tasks.jsonl --preset openai --baseline flagship
 ```
 
-`anthropic` preset, USD per million tokens, standard API prices checked on 12 November 2026 against the [Claude pricing page](https://platform.claude.com/docs/en/about-claude/pricing):
+Both presets are in USD per million tokens, at standard API prices checked on 12 November 2026.
+
+**`anthropic`** ([source](https://platform.claude.com/docs/en/about-claude/pricing))
 
 | Tier | Model | Input | Output | Cache read | Cache write (5 min) |
 |---|---|---|---|---|---|
 | light | Claude Haiku 5.5 | $0.10 | $0.50 | $0.01 | $0.125 |
 | standard | Claude Sonnet 5.5 | $2.00 | $10.00 | $0.10 | $2.50 |
 | deep | Claude Opus 5.5 | $4.00 | $20.00 | $0.20 | $5.00 |
+| flagship | Claude Fable 5.2 | $8.00 | $40.00 | $0.20 | $10.00 |
 
 - Haiku 5.5 bills a whole request at higher prices ($0.50 in, $2.50 out) once the prompt passes 100,000 tokens. The preset models this with an `over` block.
-- The 1-hour cache write rate is 2x base input and is not in the preset. Batch and regional pricing are not modelled.
-- **Prices change.** The preset records its source and the date it was checked; confirm against the source before relying on it.
-- For another provider, copy the preset, change the model IDs and prices, and pass the file to `load_config("my_prices.json")`. Each tier takes `in` and `out`, plus optional `cache_read`, `cache_write` and `over`.
-- Set `"cache_handoff": true` under `switching` if the model you hand off to caches what it is given, so the hand-off is billed at the cache write rate.
+- The 1-hour cache write rate is 2x base input and is not in the preset.
+
+**`openai`** ([source](https://developers.openai.com/api/docs/pricing))
+
+| Tier | Model | Input | Output | Cached input | Cache write (30 min) |
+|---|---|---|---|---|---|
+| light | gpt-6-luna | $0.10 | $0.50 | $0.01 | $0.125 |
+| standard | gpt-6.1-terra | $1.00 | $5.00 | $0.05 | $1.25 |
+| deep | gpt-6.1-sol | $2.00 | $10.00 | $0.10 | $2.50 |
+| flagship | gpt-6-astra | $10.00 | $50.00 | $1.00 | $12.50 |
+
+- These are short-context prices, for prompts up to 272,000 input tokens. Longer prompts cost more. Only the flagship's long-context prices ($20 in, $75 out, $2 cached) are modelled.
+- OpenAI's pricing page lists cache write rates for the GPT-6 family (30-minute and 12-hour), so the preset includes the 30-minute rate. Older OpenAI models had no cache write charge.
+- The tier-to-model mapping is this project's choice, made by price. OpenAI also lists `gpt-5.5-pro` at $30 in and $180 out with no cached rate; to use it as your flagship, copy the preset and change that tier.
+- Effort values are plain labels. Map them to whatever reasoning setting your model accepts.
+
+**For both:** batch, flex, fast and regional pricing are not modelled. **Prices change.** Each preset records its source and the date it was checked; confirm against the source before relying on it.
+
+### The flagship tier
+
+`flagship` is an optional fourth tier above `deep`, for people who run the heaviest model. A config opts in by defining it under `tiers`; both presets do, and the default config does not.
+
+- The text scorer never picks `flagship` by itself. Its ceiling is `deep`.
+- It is reached by an override (`//flagship`, `//fable`, `//astra`), by `high_stakes=True` on a deep task, by escalation after a failed check on `deep`, or by a declared job step.
+- Its main use is break-even maths for a session already on the top model:
+
+```python
+router = Router(load_config(preset="anthropic"))
+d = router.decide("search five sites and collect every listing", kind="search",
+                  current_tier="flagship", context_tokens=60000,
+                  task_tokens=40000, est_output_tokens=3000)
+print(d.action, d.route.model, round(d.stay_cost, 3), round(d.switch_cost, 3))
+```
+
+### Your own prices
+
+Copy a preset, change the model IDs and prices, and pass the file to `load_config("my_prices.json")`. Each tier takes `in` and `out`, plus optional `cache_read`, `cache_write` and `over`. Set `"cache_handoff": true` under `switching` if the model you hand off to caches what it is given, so the hand-off is billed at the cache write rate.
 
 ## Where it fits, and where it does not
 

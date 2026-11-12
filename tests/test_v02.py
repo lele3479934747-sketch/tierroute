@@ -125,6 +125,75 @@ class PricingPresetTests(unittest.TestCase):
         self.assertEqual(main(["backtest", os.path.join(EXAMPLES, "tasks.jsonl"), "--preset", "anthropic"]), 0)
 
 
+class FlagshipTierTests(unittest.TestCase):
+    def setUp(self):
+        from tierroute import load_config
+        self.load = load_config
+
+    def test_default_config_has_no_flagship(self):
+        r = Router()
+        self.assertEqual(r.order, ["light", "standard", "deep"])
+        self.assertIsNone(r.escalate(r.route("x", kind="debug")))
+        with self.assertRaises(ValueError):
+            r.decide("x", current_tier="flagship")
+        with self.assertRaises(ValueError):
+            plan_job({"steps": [{"name": "s", "tier": "flagship"}]})
+
+    def test_presets_define_flagship(self):
+        from tierroute import costs
+        for preset, model, price_in, price_out in [
+            ("anthropic", "claude-fable-5-2", 8.00, 40.00),
+            ("openai", "gpt-6-astra", 10.00, 50.00),
+        ]:
+            cfg = self.load(preset=preset)
+            r = Router(cfg)
+            self.assertEqual(r.order[-1], "flagship")
+            self.assertEqual(cfg["tiers"]["flagship"]["model"], model)
+            # 100K-token prompt: under every long-context threshold.
+            self.assertAlmostEqual(costs.call_cost(cfg, "flagship", 100_000, 0), price_in / 10)
+            self.assertAlmostEqual(costs.call_cost(cfg, "flagship", 0, 100_000), price_out / 10)
+
+    def test_scorer_never_picks_flagship_alone(self):
+        r = Router(self.load(preset="anthropic"))
+        self.assertEqual(r.route("find the root cause and weigh the architecture trade-off").tier, "deep")
+        self.assertEqual(r.route("anything", kind="debug").tier, "deep")
+
+    def test_flagship_reached_by_override_stakes_escalation_and_jobs(self):
+        r = Router(self.load(preset="anthropic"))
+        self.assertEqual(r.route("review this //fable").tier, "flagship")
+        self.assertEqual(r.route("anything", kind="debug", high_stakes=True).tier, "flagship")
+        self.assertEqual(r.escalate(r.route("anything", kind="debug")).tier, "flagship")
+        plan = plan_job({"steps": [{"name": "s", "tier": "flagship"}]}, r)
+        self.assertEqual(plan[0]["model"], "claude-fable-5-2")
+        o = Router(self.load(preset="openai"))
+        self.assertEqual(o.route("check this //astra").model, "gpt-6-astra")
+
+    def test_break_even_from_a_flagship_session(self):
+        for preset in ("anthropic", "openai"):
+            r = Router(self.load(preset=preset))
+            tiny = r.decide("rename this file", kind="list", current_tier="flagship",
+                            context_tokens=20000, est_output_tokens=50)
+            self.assertEqual((tiny.action, tiny.route.tier), ("stay", "flagship"), preset)
+            big = r.decide("search five sites", kind="search", current_tier="flagship",
+                           context_tokens=60000, task_tokens=40000, est_output_tokens=3000)
+            self.assertEqual((big.action, big.route.tier), ("switch", "light"), preset)
+            self.assertGreater(big.saving, 0)
+
+    def test_openai_cache_and_long_context_rates(self):
+        from tierroute import costs
+        cfg = self.load(preset="openai")
+        self.assertAlmostEqual(costs.call_cost(cfg, "deep", 0, 0, cached_in=1_000_000), 0.10)
+        self.assertAlmostEqual(costs.call_cost(cfg, "standard", 0, 0, write_in=1_000_000), 1.25)
+        self.assertAlmostEqual(costs.call_cost(cfg, "flagship", 0, 0, cached_in=1_000_000), 2.00)  # over 272K
+        self.assertAlmostEqual(costs.call_cost(cfg, "flagship", 200_000, 0), 2.00)
+        self.assertAlmostEqual(costs.call_cost(cfg, "flagship", 300_000, 0), 6.00)
+
+    def test_cli_flagship_baseline(self):
+        for preset in ("anthropic", "openai"):
+            self.assertEqual(main(["backtest", os.path.join(EXAMPLES, "tasks.jsonl"),
+                                   "--preset", preset, "--baseline", "flagship"]), 0)
+
+
 class JobsAndBacktestTests(unittest.TestCase):
     def test_plan_job(self):
         with open(os.path.join(EXAMPLES, "job.json"), encoding="utf-8") as f:

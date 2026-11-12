@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import os
 
-from .router import TIER_ORDER, step
+from .router import step
 
 
 class OutcomeStore:
@@ -36,11 +36,11 @@ class OutcomeStore:
             return None, 0
         return cell["fail"] / cell["n"], cell["n"]
 
-    def promoted_tier(self, kind: str, tier: str, learning: dict) -> str:
+    def promoted_tier(self, kind: str, tier: str, learning: dict, order: list) -> str:
         """Step up while this kind has enough samples and fails too often on the tier."""
-        while tier != TIER_ORDER[-1]:
+        while tier != order[-1]:
             rate, n = self.fail_rate(kind, tier)
             if rate is None or n < learning["min_samples"] or rate <= learning["max_fail_rate"]:
                 break
-            tier = step(tier, +1)
+            tier = step(tier, +1, order)
         return tier
