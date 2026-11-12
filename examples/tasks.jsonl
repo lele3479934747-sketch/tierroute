@@ -1,0 +1,8 @@
+{"task": "find and list new postings on three job boards", "kind": "search", "out_tokens": 600}
+{"task": "extract the closing date and requirements from this ad", "kind": "extract", "out_tokens": 300}
+{"task": "draft a one-page cover letter for this role", "kind": "draft", "out_tokens": 700}
+{"task": "tailor the resume to the ad", "kind": "draft", "out_tokens": 1200}
+{"task": "write selection criteria responses for a university role", "high_stakes": true, "out_tokens": 2500}
+{"task": "rename this file", "current_tier": "deep", "context_tokens": 20000, "out_tokens": 50}
+{"task": "search five sites and collect every listing from the past week", "kind": "search", "current_tier": "deep", "context_tokens": 60000, "in_tokens": 40000, "out_tokens": 3000}
+{"task": "find the root cause of the failing nightly job and weigh the architecture trade-off", "out_tokens": 2000}

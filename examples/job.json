@@ -1,0 +1,8 @@
+{
+  "job": "daily-report",
+  "steps": [
+    {"name": "collect", "kind": "search", "task": "collect yesterday's new items from the sources"},
+    {"name": "summarise", "kind": "summarise", "task": "summarise each item in two sentences"},
+    {"name": "final-review", "tier": "deep", "task": "check the report for errors before sending"}
+  ]
+}

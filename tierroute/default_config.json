@@ -1,0 +1,50 @@
+{
+  "tiers": {
+    "light":    {"model": "claude-haiku-5-5",  "effort": "low"},
+    "standard": {"model": "claude-sonnet-5-5", "effort": "medium"},
+    "deep":     {"model": "claude-opus-5-5",   "effort": "high"}
+  },
+  "overrides": {
+    "//haiku": "light",
+    "//light": "light",
+    "//sonnet": "standard",
+    "//standard": "standard",
+    "//opus": "deep",
+    "//deep": "deep"
+  },
+  "kinds": {
+    "search": "light",
+    "extract": "light",
+    "classify": "light",
+    "list": "light",
+    "summarise": "standard",
+    "draft": "standard",
+    "write": "standard",
+    "code": "standard",
+    "debug": "deep",
+    "plan": "deep",
+    "review": "deep",
+    "analyse": "deep"
+  },
+  "keywords": {
+    "light": ["find", "search", "look up", "lookup", "list", "fetch", "extract", "collect", "classify", "tag", "scan"],
+    "standard": ["draft", "write", "rewrite", "tailor", "summarise", "summarize", "implement", "refactor", "cover letter", "translate"],
+    "deep": ["architecture", "root cause", "trade-off", "tradeoff", "strategy", "security review", "prove", "legal", "selection criteria", "design a system", "migrate", "diagnose"]
+  },
+  "cost_units": "relative units (illustrative; replace cost_per_mtok with your provider's prices)",
+  "cost_per_mtok": {
+    "light":    {"in": 1,  "out": 5},
+    "standard": {"in": 3,  "out": 15},
+    "deep":     {"in": 15, "out": 75}
+  },
+  "switching": {
+    "cache_read_factor": 0.1,
+    "cold_start_tokens": 3000,
+    "handoff_tokens": 2000,
+    "default_output_tokens": 800,
+    "min_saving_ratio": 0.15
+  },
+  "learning": {"min_samples": 5, "max_fail_rate": 0.3},
+  "length": {"medium": 1500, "long": 6000},
+  "thresholds": {"light": -1, "deep": 3}
+}

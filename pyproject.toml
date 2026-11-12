@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tierroute"
+version = "0.2.0"
+description = "Tiny dependency-free router that picks a model and reasoning effort per task."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+dependencies = []
+
+[tool.setuptools]
+packages = ["tierroute"]
+
+[tool.setuptools.package-data]
+tierroute = ["default_config.json"]
