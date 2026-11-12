@@ -25,16 +25,19 @@ def main(argv=None) -> int:
     r.add_argument("--current-tier", help="tier of the model already holding the conversation")
     r.add_argument("--context-tokens", type=int, default=0)
     r.add_argument("--config")
+    r.add_argument("--preset", help="bundled preset, e.g. anthropic")
 
     j = sub.add_parser("plan", help="resolve the declared routes of a job file")
     j.add_argument("job")
     j.add_argument("--config")
+    j.add_argument("--preset", help="bundled preset, e.g. anthropic")
 
     b = sub.add_parser("backtest", help="estimate cost of routing past tasks vs one tier")
     b.add_argument("tasks", help=".jsonl or .txt, one task per line")
     b.add_argument("--baseline", default="deep")
     b.add_argument("--rows", action="store_true", help="include per-task rows")
     b.add_argument("--config")
+    b.add_argument("--preset", help="bundled preset, e.g. anthropic")
 
     s = sub.add_parser("stats", help="summarise a receipts log")
     s.add_argument("receipts")
@@ -44,7 +47,7 @@ def main(argv=None) -> int:
     if a.cmd == "stats":
         out = receipts.summarise(receipts.read(a.receipts))
     else:
-        router = Router(load_config(a.config))
+        router = Router(load_config(a.config, preset=a.preset))
         if a.cmd == "route":
             task = a.task if a.task is not None else sys.stdin.read()
             out = router.decide(task, kind=a.kind, high_stakes=a.high_stakes,

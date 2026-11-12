@@ -31,7 +31,7 @@
     "standard": ["draft", "write", "rewrite", "tailor", "summarise", "summarize", "implement", "refactor", "cover letter", "translate"],
     "deep": ["architecture", "root cause", "trade-off", "tradeoff", "strategy", "security review", "prove", "legal", "selection criteria", "design a system", "migrate", "diagnose"]
   },
-  "cost_units": "relative units (illustrative; replace cost_per_mtok with your provider's prices)",
+  "cost_units": "relative units (illustrative; use --preset anthropic or set cost_per_mtok for real prices)",
   "cost_per_mtok": {
     "light":    {"in": 1,  "out": 5},
     "standard": {"in": 3,  "out": 15},
@@ -39,6 +39,8 @@
   },
   "switching": {
     "cache_read_factor": 0.1,
+    "cache_write_factor": 1.25,
+    "cache_handoff": false,
     "cold_start_tokens": 3000,
     "handoff_tokens": 2000,
     "default_output_tokens": 800,

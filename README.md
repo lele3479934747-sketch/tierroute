@@ -2,6 +2,16 @@
 
 A tiny, dependency-free router that picks a **model** and a **reasoning effort** for each task, and only switches models when the switch actually pays.
 
+## Why
+
+Flagship AI models keep getting more capable, and they also use more tokens, more time and more context for every step they take. Real workflows are a mix: a little hard reasoning surrounded by many simple steps such as searching, listing, extracting and reformatting. Running all of it on the flagship means paying flagship rates for work a smaller model does just as well.
+
+tierroute is a general-purpose router for that mix. It is not tied to one kind of task or one tool: it works for prompts typed by a person, steps inside an agent, and scheduled jobs that run on their own.
+
+![How tierroute works: a task is sorted into quick jobs, everyday work or hard problems, each with its own model and effort](media/tierroute-how-it-works.png)
+
+## What makes it different
+
 Most routers compare list prices and stop there. tierroute adds the parts that decide whether routing saves money in practice:
 
 - **Break-even rule.** Switching models has a cost: a cold start, a hand-off, a lost prompt cache. `decide()` estimates it and keeps small tasks where they are.
@@ -9,9 +19,11 @@ Most routers compare list prices and stop there. tierroute adds the parts that d
 - **Check, escalate, learn.** You supply a cheap check. A failure retries one tier up, and a task type that keeps failing on a tier is promoted automatically. This is counting, not training.
 - **Declared routes for automated jobs.** A scheduled job states each step's task type, so routing is fixed in code and no model has to follow a hint.
 
+![tierroute only switches when switching pays, and retries one level up when a check fails](media/tierroute-switch-when-it-pays.png)
+
 Routing itself is a deterministic scoring function: no extra model call, no embeddings, no API key. Python 3.9+ standard library only.
 
-> **Status: v0.2, not yet benchmarked against real models.** The tests cover the logic. The cost figures are estimates from prices you put in the config. Nothing here has been measured on live workloads yet.
+> **Status: v0.3, not yet benchmarked against real models.** The tests cover the logic. The cost figures are estimates from the prices in your config or preset. Nothing here has been measured on live workloads yet.
 
 ## Quick start
 
@@ -155,7 +167,32 @@ router = Router(load_config("my_routes.json"))
 | `switching` | Cache-read factor, cold-start and hand-off sizes, default output size, `min_saving_ratio` |
 | `learning` | `min_samples` and `max_fail_rate` for promotion |
 
-**Replace `cost_per_mtok` with your provider's real prices.** The defaults are illustrative relative units, and the default model IDs are examples.
+## Pricing presets
+
+The default config uses illustrative relative units, so estimates work with no setup. For real prices, load the bundled preset:
+
+```python
+from tierroute import Router, load_config
+router = Router(load_config(preset="anthropic"))
+```
+
+```bash
+python -m tierroute backtest examples/tasks.jsonl --preset anthropic
+```
+
+`anthropic` preset, USD per million tokens, standard API prices checked on 12 November 2026 against the [Claude pricing page](https://platform.claude.com/docs/en/about-claude/pricing):
+
+| Tier | Model | Input | Output | Cache read | Cache write (5 min) |
+|---|---|---|---|---|---|
+| light | Claude Haiku 5.5 | $0.10 | $0.50 | $0.01 | $0.125 |
+| standard | Claude Sonnet 5.5 | $2.00 | $10.00 | $0.10 | $2.50 |
+| deep | Claude Opus 5.5 | $4.00 | $20.00 | $0.20 | $5.00 |
+
+- Haiku 5.5 bills a whole request at higher prices ($0.50 in, $2.50 out) once the prompt passes 100,000 tokens. The preset models this with an `over` block.
+- The 1-hour cache write rate is 2x base input and is not in the preset. Batch and regional pricing are not modelled.
+- **Prices change.** The preset records its source and the date it was checked; confirm against the source before relying on it.
+- For another provider, copy the preset, change the model IDs and prices, and pass the file to `load_config("my_prices.json")`. Each tier takes `in` and `out`, plus optional `cache_read`, `cache_write` and `over`.
+- Set `"cache_handoff": true` under `switching` if the model you hand off to caches what it is given, so the hand-off is billed at the cache write rate.
 
 ## Where it fits, and where it does not
 
@@ -168,7 +205,7 @@ router = Router(load_config("my_routes.json"))
 - Token counts are a rough four-characters-per-token estimate unless you pass real counts.
 - The switching model is simple. It assumes the current context is cached and the new model reads everything cold.
 - Promotion only moves a kind up. To move it back down, edit or delete its entry in the outcomes file.
-- No benchmark on real models yet.
+- No benchmark on real models yet. Real prices make the estimates more realistic, not measured.
 
 ## Tests
 

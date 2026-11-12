@@ -89,6 +89,42 @@ class LearnAndRunTests(unittest.TestCase):
         self.assertEqual((route.tier, attempts, passed), ("deep", 1, False))
 
 
+class PricingPresetTests(unittest.TestCase):
+    def setUp(self):
+        from tierroute import load_config
+        self.cfg = load_config(preset="anthropic")
+
+    def test_preset_prices_and_models(self):
+        from tierroute import costs
+        self.assertEqual(self.cfg["tiers"]["deep"]["model"], "claude-opus-5-5")
+        self.assertAlmostEqual(costs.call_cost(self.cfg, "standard", 1_000_000, 0), 2.00)
+        self.assertAlmostEqual(costs.call_cost(self.cfg, "deep", 0, 1_000_000), 20.00)
+
+    def test_cache_read_and_write_rates(self):
+        from tierroute import costs
+        self.assertAlmostEqual(costs.call_cost(self.cfg, "deep", 0, 0, cached_in=1_000_000), 0.20)
+        self.assertAlmostEqual(costs.call_cost(self.cfg, "standard", 0, 0, write_in=1_000_000), 2.50)
+
+    def test_long_prompt_tier(self):
+        from tierroute import costs
+        self.assertAlmostEqual(costs.call_cost(self.cfg, "light", 100_000, 0), 0.01)
+        self.assertAlmostEqual(costs.call_cost(self.cfg, "light", 200_000, 0), 0.10)
+
+    def test_default_factors_when_rates_absent(self):
+        from tierroute import costs, load_config
+        cfg = load_config()
+        self.assertAlmostEqual(costs.call_cost(cfg, "deep", 0, 0, cached_in=1_000_000), 1.5)
+        self.assertAlmostEqual(costs.call_cost(cfg, "deep", 0, 0, write_in=1_000_000), 18.75)
+
+    def test_unknown_preset(self):
+        from tierroute import load_config
+        with self.assertRaises(ValueError):
+            load_config(preset="nope")
+
+    def test_cli_preset(self):
+        self.assertEqual(main(["backtest", os.path.join(EXAMPLES, "tasks.jsonl"), "--preset", "anthropic"]), 0)
+
+
 class JobsAndBacktestTests(unittest.TestCase):
     def test_plan_job(self):
         with open(os.path.join(EXAMPLES, "job.json"), encoding="utf-8") as f:

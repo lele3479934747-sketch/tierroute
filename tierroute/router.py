@@ -22,6 +22,7 @@ from . import costs
 TIER_ORDER = ["light", "standard", "deep"]
 
 _DEFAULT_CONFIG_PATH = Path(__file__).with_name("default_config.json")
+_PRESET_DIR = Path(__file__).with_name("presets")
 
 
 @dataclass
@@ -73,18 +74,33 @@ class Decision:
         return d
 
 
-def load_config(path: Optional[str] = None) -> dict:
-    """Load the default config, optionally overlaid with a user JSON file."""
+def preset_path(name: str) -> str:
+    """Path of a bundled preset, e.g. preset_path("anthropic")."""
+    path = _PRESET_DIR / (name + ".json")
+    if not path.exists():
+        names = sorted(f.stem for f in _PRESET_DIR.glob("*.json"))
+        raise ValueError("unknown preset %r; available: %s" % (name, ", ".join(names)))
+    return str(path)
+
+
+def _overlay(config: dict, path: str) -> None:
+    with open(path, encoding="utf-8") as f:
+        user = json.load(f)
+    for key, value in user.items():
+        if isinstance(value, dict) and isinstance(config.get(key), dict):
+            config[key].update(value)
+        else:
+            config[key] = value
+
+
+def load_config(path: Optional[str] = None, preset: Optional[str] = None) -> dict:
+    """Load the default config, then an optional bundled preset, then your JSON file."""
     with open(_DEFAULT_CONFIG_PATH, encoding="utf-8") as f:
         config = json.load(f)
+    if preset:
+        _overlay(config, preset_path(preset))
     if path:
-        with open(path, encoding="utf-8") as f:
-            user = json.load(f)
-        for key, value in user.items():
-            if isinstance(value, dict) and isinstance(config.get(key), dict):
-                config[key].update(value)
-            else:
-                config[key] = value
+        _overlay(config, path)
     return config
 
 
@@ -222,7 +238,12 @@ class Router:
         carry = sw["handoff_tokens"] if carry_tokens is None else carry_tokens
         # The new model reads everything cold; the current model still pays one
         # turn to write the hand-off and read the result back.
-        switch = costs.call_cost(cfg, r.tier, sw["cold_start_tokens"] + carry + task_in, out)
+        cold = sw["cold_start_tokens"] + carry
+        if sw.get("cache_handoff"):
+            # The new model caches what it is handed (worth it for multi-turn helpers).
+            switch = costs.call_cost(cfg, r.tier, task_in, out, write_in=cold)
+        else:
+            switch = costs.call_cost(cfg, r.tier, cold + task_in, out)
         switch += costs.call_cost(cfg, current_tier, out, carry, cached_in=context_tokens)
 
         going_down = TIER_ORDER.index(r.tier) < TIER_ORDER.index(current_tier)
